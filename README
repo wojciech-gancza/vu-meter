@@ -1,0 +1,11 @@
+# vu-meter
+
+VU-Meter build on Atmega32 - simple code written in atmel assembler. 
+
+VU meter is a part of audio mixer project build as modular construction allowing 
+build a simple mixer and expand it depending on your needs. VU meter is stereo
+display showing current value of signal (using bar of lights) as well as the peak 
+value displayed on single led. 
+
+Schematic and pcb design one can find in attached .png files. 
+

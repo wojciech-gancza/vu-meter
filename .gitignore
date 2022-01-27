@@ -1,0 +1,6 @@
+AvrBuild.bat
+*.tmp
+*.obj
+*.aps
+*.aws
+*.map
