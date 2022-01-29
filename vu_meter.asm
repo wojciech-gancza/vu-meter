@@ -90,20 +90,41 @@ initOS:				cli
 					rcall   displayOff
 					rcall	clearBar
 
-				; test code 
-					ldi		r16, 9
-					mov		r0, r16
-					ldi		r16, 11
-					mov		r1, r16
-					ldi		r16, 17
-					mov		r2, r16
-					ldi		r16, 8
-					mov		r3, r16
+				; for tests only
+					eor		r13, r13
+				; /for tests only
 
 				; main loop - reads interface and reacts on changes
 				; all the important functionality is in inerupts
 					sei
 mainLoop:		 	rjmp	mainLoop		
+
+;-------------------------------------------------------------------------------
+
+.equ				DOT_DELAY = 200
+.equ				DOT_DECAY = 4
+
+setLeft:		; r16 - value
+					cp		r16, r0
+					brlt	notSet
+					mov		r0, r16
+					cp		r16, r1
+					brlt	notSet
+					mov     r1, r16
+					ldi		r16, DOT_DELAY
+					mov		r5, r16
+notSet:				ret
+
+setRight:		; r16 - value
+					cp		r16, r2
+					brlt	notSet
+					mov		r2, r16
+					cp		r16, r3
+					brlt	notSet
+					mov     r3, r16
+					ldi		r16, DOT_DELAY
+					mov		r6, r16
+					ret
 
 ;-------------------------------------------------------------------------------
 
@@ -115,13 +136,15 @@ timerTick1ms:		push	r16
 					ldi		r16, -125
 					out		TCNT2, r16
 
+
+				; update state of the display
 					push	r17
 					push	zl
 					push	zh
 
 					rcall	clearBar
 
-				; R4: 	bit0: 0:Left,    1:Right
+handleDisplay:	; R4: 	bit0: 0:Left,    1:Right
 				;	 	bit1: 0:Dot+Bar, 1:Bar
 					inc		r4
 					sbrc	r4, 0
@@ -133,12 +156,13 @@ timerTick1ms:		push	r16
 					rjmp	timerStep10
 
 timerStep00:		mov		r16, r0
+					eor		r0, r0
 					rcall	showBar
 
 timerStep10:		mov		r16, r1
 					rcall	addDot
 
-					rjmp	timerEnd
+					rjmp	handleDisplayEnd
 
 timerStep_1:		rcall	selectR
 					
@@ -146,12 +170,64 @@ timerStep_1:		rcall	selectR
 					rjmp	timerStep11
 
 timerStep01:		mov		r16, r2
+					eor		r2, r2
 					rcall	showBar
 
 timerStep11:		mov		r16, r3
 					rcall	addDot
 
-timerEnd:			pop		zh
+handleDisplayEnd:	nop
+
+handleDotDecay:		ldi		r16, $03 ; mask for tic counter - to perform dot decay
+					and		r16, r4	
+					brne	handleDotDecayEnd
+
+handleFirstDot:		and 	r1, r1
+					breq	handleSecondDot
+
+					dec		r5
+					brne	handleSecondDot
+					dec		r1
+					ldi		r16, DOT_DECAY
+					mov		r5, r16
+
+handleSecondDot:	and 	r3, r3
+					breq	handleDotDecayEnd
+
+					dec		r6
+					brne	handleDotDecayEnd
+					dec		r3
+					ldi		r16, DOT_DECAY
+					mov		r6, r16
+
+handleDotDecayEnd:	nop
+
+timerEnd:		; additional tick handling
+
+						
+				; for tests only
+					mov		r16, r10
+					rcall	setLeft
+					mov		r16, r11
+					rcall 	setRight
+					dec		r12
+					dec		r12
+					brne	endOfInterupt
+				; called aprox 4 times a second
+					inc		r13
+					inc		r13
+					ldi		zl, low(2*testValues)
+					ldi		zh, high(2*testValues)
+					ldi		r16, 0
+					add		zl, r13
+					adc		zh, r16
+					lpm		r16, z+
+					mov		r10, r16
+					lpm		r16, z
+					mov		r11, r16
+				; /for tests only
+
+endOfInterupt:		pop		zh
 					pop		zl
 					pop		r17
 
@@ -159,6 +235,24 @@ timerEnd:			pop		zh
 					out		SREG, r16
 					pop		r16
 					reti
+
+testValues:			.db 	 7,  0,  8,  1,  9,  2, 10,  3, 11,  4, 14,  9,  4, 19, 1,  1
+					.db 	 0,  0,  2,  2,  4,  4,  3,  3,  2,  4,  3,  3,  4,  2, 1,  1
+					.db 	 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0,  0
+					.db 	20,  0,  0,  0,  0, 18,  0,  0,  0,  0,  0,  0,  0,  0, 0,  0
+					.db 	 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0,  0
+					.db 	 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0,  0
+					.db 	 0,  0,  0, 17,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0,  0
+					.db 	 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0,  0
+					.db 	 7,  0,  8,  1,  9,  2, 10,  3, 11,  4, 14,  9,  4, 19, 1,  1
+					.db 	 0,  0,  2,  2,  4,  4,  3,  3,  2,  4,  3,  3,  4,  2, 1,  1
+					.db 	 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0,  0
+					.db 	20,  0,  0,  0,  0, 18,  0,  0,  0,  0,  0,  0,  0,  0, 0,  0
+					.db 	 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0,  0
+					.db 	 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0,  0
+					.db 	 0,  0,  0, 17,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0,  0
+					.db 	 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 0,  0
+					
 
 ;-------------------------------------------------------------------------------
 
